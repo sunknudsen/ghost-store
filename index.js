@@ -354,7 +354,7 @@ app.get("/store", async (req, res) => {
     }
     const email = req.query.email
     const members = await ghostClient.members.browse({
-      filter: `email:${email}`,
+      filter: `email:'${email}'`,
     })
     if (members.length !== 1) {
       const error = new Error("Membership required")
