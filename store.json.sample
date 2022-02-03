@@ -1,0 +1,22 @@
+{
+  "qr-bridge": {
+    "id": "prod_L2EsSVD8OwVBPm",
+    "name": "QR Bridge",
+    "paymentLink": "https://buy.stripe.com/test_aEU014cfh0kT6M8001",
+    "downloads": {
+      "qr-bridge.AppImage": "qr-bridge-1.1.0.AppImage",
+      "qr-bridge.AppImage.asc": "qr-bridge-1.1.0.AppImage.asc"
+    },
+    "members": true
+  },
+  "bitcoin-masterclass": {
+    "id": "prod_L2EwNuviYnZhDc",
+    "name": "Bitcoin self-custody for beginners master class",
+    "paymentLink": "https://buy.stripe.com/test_fZe29c7Z17Nlb2obIK",
+    "links": [
+      "https://meet.sunknudsen.com/bitcoin-masterclass-c189ba64eb6c"
+    ],
+    "eventOn": "2022-01-08T18:00:00.000Z",
+    "members": false
+  }
+}

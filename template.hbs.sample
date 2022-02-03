@@ -1,0 +1,25 @@
+Hey {{to.firstName}},
+
+Thanks for your purchase. 🙌
+{{#if downloads}}
+
+Heads-up: download links expire {{expiry}} after they have been used.
+
+{{#each downloads}}
+{{this}}
+{{/each}}
+{{/if}}
+{{#if links}}
+{{#each links}}
+
+{{this}}
+{{/each}}
+{{/if}}
+{{#if eventOn}}
+
+See you on {{eventOn}}.
+{{/if}}
+
+Have a wonderful day,
+
+{{from.firstName}}
