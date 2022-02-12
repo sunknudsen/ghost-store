@@ -2,5 +2,6 @@
 *.code-workspace
 /node_modules
 npm-debug.log
+polls.json
 store.json
 template.hbs

@@ -2,6 +2,7 @@
 
 const dotenv = require("dotenv")
 const express = require("express")
+const bodyParser = require("body-parser")
 const { Sequelize, Model, DataTypes } = require("sequelize")
 const got = require("got")
 const ghost = require("@tryghost/admin-api")
@@ -15,6 +16,7 @@ const { createHmac, randomBytes } = require("crypto")
 
 dotenv.config()
 
+const pollsFile = join(__dirname, "polls.json")
 const storeFile = join(__dirname, "store.json")
 const templateFile = join(__dirname, "template.hbs")
 
@@ -188,6 +190,10 @@ app.use(
   })
 )
 
+app.use(bodyParser.json())
+
+app.use(bodyParser.urlencoded({ extended: true }))
+
 app.post("/", async (req, res) => {
   try {
     const stripeSignature = req.headers["stripe-signature"]
@@ -296,21 +302,21 @@ app.post("/admin", async (req, res) => {
     }
     if (!req.body.name || req.body.name === "") {
       const error = new Error("Missing name")
-      console.error(error, req.headers.authorization)
+      console.error(error, req.body)
       return res.status(400).send({
         error: error.message,
       })
     }
     if (!req.body.email || req.body.email === "") {
       const error = new Error("Missing email")
-      console.error(error, req.headers.authorization)
+      console.error(error, req.body)
       return res.status(400).send({
         error: error.message,
       })
     }
     if (!req.body.path || req.body.path === "") {
       const error = new Error("Missing path")
-      console.error(error, req.headers.authorization)
+      console.error(error, req.body)
       return res.status(400).send({
         error: error.message,
       })
@@ -319,7 +325,7 @@ app.post("/admin", async (req, res) => {
     const product = store[path]
     if (!product) {
       const error = new Error("Product not found")
-      console.error(error, req.headers.authorization)
+      console.error(error, req.body)
       return res.status(404).send({
         error: error.message,
       })
@@ -449,9 +455,107 @@ app.get("/downloads/:filename", async (req, res) => {
   }
 })
 
+app.post("/polls", async (req, res) => {
+  try {
+    if (!req.body.name || req.body.name === "") {
+      const error = new Error("Missing name")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    if (!req.body.response || req.body.response === "") {
+      const error = new Error("Missing response")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    if (!polls.includes(req.body.name)) {
+      const error = new Error("Invalid name")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    await Poll.create({
+      name: req.body.name,
+      response: req.body.response,
+    })
+    return res.status(201).send("Thanks! 🙌")
+  } catch (error) {
+    prettyError(error)
+    return res.sendStatus(500)
+  }
+})
+
+app.get("/polls/:name", async (req, res) => {
+  try {
+    const authorization = req.headers["authorization"]
+    if (!authorization) {
+      const error = new Error("Missing authorization header")
+      console.error(error)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    if (authorization !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+      const error = new Error("Wrong authorization header")
+      console.error(error, authorization)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    if (!req.params.name || req.params.name === "") {
+      const error = new Error("Missing name")
+      console.error(error, req.params)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    if (!polls.includes(req.params.name)) {
+      const error = new Error("Invalid name")
+      console.error(error, req.params)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    const rows = await Poll.findAll({
+      attributes: ["name", "response"],
+      where: {
+        name: req.params.name,
+      },
+    })
+    const responses = []
+    rows.forEach((row) => {
+      responses.push(row.response)
+    })
+    return res.status(200).send({
+      name: req.params.name,
+      responses: responses,
+    })
+  } catch (error) {
+    prettyError(error)
+    return res.sendStatus(500)
+  }
+})
+
 app.get("/status", async (req, res) => {
   return res.sendStatus(204)
 })
+
+var polls
+
+const loadPolls = async () => {
+  const exists = await pathExists(pollsFile)
+  if (exists === false) {
+    polls = []
+    await writeFile(pollsFile, JSON.stringify(polls, null, 2))
+  } else {
+    const data = await readFile(pollsFile, "utf8")
+    polls = JSON.parse(data)
+  }
+}
 
 var store
 
@@ -474,6 +578,7 @@ const loadTemplate = async () => {
 }
 
 class Download extends Model {}
+class Poll extends Model {}
 
 const initializeDatabase = async () => {
   Download.init(
@@ -497,6 +602,20 @@ const initializeDatabase = async () => {
     },
     { sequelize, modelName: "downloads" }
   )
+  Poll.init(
+    {
+      name: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        index: true,
+      },
+      response: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+    },
+    { sequelize, modelName: "polls" }
+  )
   await sequelize.sync()
   if (process.env.DEBUG === "true") {
     console.info("Database synched")
@@ -513,6 +632,7 @@ const initializeServer = async () => {
 
 const run = async () => {
   try {
+    await loadPolls()
     await loadStore()
     await loadTemplate()
     await initializeDatabase()
