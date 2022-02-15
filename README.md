@@ -1,10 +1,10 @@
 # ghost-store
 
-## Sell downloads and master classes on Ghost.
+## Sell downloads and masterclasses on Ghost.
 
 [Ghost](https://ghost.org/) is an amazing open source publication platform used by content creators to monetize their content.
 
-Selling downloads and master classes is not currently possible on Ghost so I created ghost-store to scratch my own itch.
+Selling downloads and masterclasses is not currently possible on Ghost so I created ghost-store to scratch my own itch.
 
 Implementing ghost-store it not straightforward… this repo was made public so other technologists don’t have to go down the rabbit hole like I did.
 
