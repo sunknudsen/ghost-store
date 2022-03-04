@@ -164,16 +164,31 @@ const ghostClient = new ghost({
   version: "v4",
 })
 
-const nodemailerTransport = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT),
-  requireTLS: true,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USERNAME,
-    pass: process.env.SMTP_PASSWORD,
-  },
-})
+const createTransport = () => {
+  if (process.env.SMTP_HOST === "localhost") {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT),
+      secure: false,
+      tls: {
+        rejectUnauthorized: false,
+      },
+    })
+  } else {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT),
+      requireTLS: true,
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USERNAME,
+        pass: process.env.SMTP_PASSWORD,
+      },
+    })
+  }
+}
+
+const nodemailerTransport = createTransport()
 
 const app = express()
 

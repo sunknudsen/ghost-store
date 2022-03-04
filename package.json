@@ -1,6 +1,6 @@
 {
   "name": "ghost-store",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Sell downloads and masterclasses on Ghost.",
   "main": "index.js",
   "scripts": {
