@@ -104,12 +104,10 @@ const sendOrderConfirmationEmail = async (to, path, product) => {
   }
   const data = {
     from: {
-      name: from.name,
       firstName: from.name.split(" ")[0],
       email: from.email,
     },
     to: {
-      name: to.name,
       firstName: to.name.split(" ")[0],
       email: to.email,
     },
@@ -234,10 +232,7 @@ app.post("/", async (req, res) => {
     }
     const sessionId = req.body.data.object.id
     const session = await stripeClient.get(
-      `v1/checkout/sessions/${sessionId}?expand[]=customer&expand[]=line_items`,
-      {
-        responseType: "json",
-      }
+      `v1/checkout/sessions/${sessionId}?expand[]=customer&expand[]=line_items`
     )
     if (session.body.payment_status !== "paid") {
       logger.captureException(

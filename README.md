@@ -12,7 +12,13 @@ Implementing ghost-store it not straightforward… this repo was made public so 
 
 ## Implementation overview
 
-### Step 1: setup [Stripe](https://stripe.com/) account
+### Step 1: create and configure [Stripe](https://stripe.com/) account
+
+Go to [https://dashboard.stripe.com/settings/user](https://dashboard.stripe.com/settings/user) and configure user.
+
+Go to [https://dashboard.stripe.com/settings/emails](https://dashboard.stripe.com/settings/emails) and configure emails.
+
+Go to [https://dashboard.stripe.com/settings/branding](https://dashboard.stripe.com/settings/branding) and configure branding.
 
 ### Step 2: create restricted Stripe API key
 

@@ -1,6 +1,6 @@
 {
   "name": "ghost-store",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Sell downloads and masterclasses on Ghost.",
   "main": "index.js",
   "scripts": {
@@ -17,20 +17,20 @@
   },
   "homepage": "https://github.com/sunknudsen/ghost-store#readme",
   "dependencies": {
-    "@tryghost/admin-api": "^1.5.0",
-    "body-parser": "^1.19.1",
+    "@tryghost/admin-api": "^1.8.0",
+    "body-parser": "^1.19.2",
     "dotenv": "^14.3.2",
-    "express": "^4.17.2",
-    "fs-extra": "^10.0.0",
+    "express": "^4.17.3",
+    "fs-extra": "^10.0.1",
     "got": "^11.8.3",
     "handlebars": "^4.7.7",
     "moment": "^2.29.1",
     "mysql2": "^2.3.3",
     "nodemailer": "^6.7.2",
-    "sequelize": "^6.16.1"
+    "sequelize": "^6.17.0"
   },
   "devDependencies": {
-    "npm-check-updates": "^12.3.0"
+    "npm-check-updates": "^12.5.2"
   },
   "prettier": {
     "endOfLine": "lf",
