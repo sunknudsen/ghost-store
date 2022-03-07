@@ -131,6 +131,19 @@ const sendOrderConfirmationEmail = async (to, path, product) => {
   return info
 }
 
+const isEmail = (string) => {
+  if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(string)) {
+    return true
+  }
+  return false
+}
+
+const wait = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
+
+const between = (min, max) => {
+  return Math.floor(Math.random() * (max - min) + min)
+}
+
 const sequelizeOptions = {
   host: "localhost",
   dialect: "mysql",
@@ -345,42 +358,44 @@ app.post("/admin", async (req, res) => {
       email: req.body.email,
     }
     await sendOrderConfirmationEmail(to, path, product)
-    return res.sendStatus(202)
+    return res.status(200).send({
+      sent: true,
+    })
   } catch (error) {
     prettyError(error)
     return res.sendStatus(500)
   }
 })
 
-app.get("/store", async (req, res) => {
+app.post("/store", async (req, res) => {
   try {
-    if (!req.query.path || req.query.path === "") {
+    if (!req.body.path || req.body.path === "") {
       const error = new Error("Missing path")
-      console.error(error, req.query)
+      console.error(error, req.body)
       return res.status(400).send({
         error: error.message,
       })
     }
-    if (!req.query.email || req.query.email === "") {
+    if (!req.body.email || req.body.email === "") {
       const error = new Error("Missing email")
-      console.error(error, req.query)
+      console.error(error, req.body)
       return res.status(400).send({
         error: error.message,
       })
     }
-    const email = req.query.email
+    const email = req.body.email
     const members = await ghostClient.members.browse({
       filter: `email:'${email}'`,
     })
     if (members.length !== 1) {
       const error = new Error("Membership required")
-      console.error(error, req.query)
+      console.error(error, req.body)
       return res.status(401).send({
         error: error.message,
       })
     }
     const member = members[0]
-    const path = req.query.path
+    const path = req.body.path
     const product = store[path]
     if (!product) {
       const error = new Error("Product not found")
@@ -401,7 +416,7 @@ app.get("/store", async (req, res) => {
       email: member.email,
     }
     await sendOrderConfirmationEmail(to, path, product)
-    return res.redirect(process.env.GHOST_CONFIRMATION_PAGE)
+    return res.redirect(process.env.GHOST_STORE_CONFIRMATION_PAGE)
   } catch (error) {
     prettyError(error)
     return res.sendStatus(500)
@@ -481,18 +496,43 @@ app.post("/polls", async (req, res) => {
         error: error.message,
       })
     }
-    if (!polls.includes(req.body.name)) {
+    const name = req.body.name
+    const response = req.body.response.trim()
+    const poll = polls[name]
+    if (!poll) {
       const error = new Error("Invalid name")
       console.error(error, req.body)
       return res.status(400).send({
         error: error.message,
       })
     }
-    await Poll.create({
-      name: req.body.name,
-      response: req.body.response,
-    })
-    return res.status(201).send("Thanks! 🙌")
+    if (poll.type === "email" && isEmail(response) !== true) {
+      const error = new Error("Invalid email")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    var duplicate = false
+    if (poll.unique === true) {
+      const rows = await Poll.findAll({
+        attributes: ["id"],
+        where: {
+          name: name,
+          response: response,
+        },
+      })
+      if (rows.length !== 0) {
+        duplicate = true
+      }
+    }
+    if (duplicate !== true) {
+      await Poll.create({
+        name: name,
+        response: response,
+      })
+    }
+    return res.redirect(process.env.GHOST_POLLS_CONFIRMATION_PAGE)
   } catch (error) {
     prettyError(error)
     return res.sendStatus(500)
@@ -523,7 +563,9 @@ app.get("/polls/:name", async (req, res) => {
         error: error.message,
       })
     }
-    if (!polls.includes(req.params.name)) {
+    const name = req.params.name
+    const poll = polls[name]
+    if (!poll) {
       const error = new Error("Invalid name")
       console.error(error, req.params)
       return res.status(400).send({
@@ -531,9 +573,9 @@ app.get("/polls/:name", async (req, res) => {
       })
     }
     const rows = await Poll.findAll({
-      attributes: ["name", "response"],
+      attributes: ["response"],
       where: {
-        name: req.params.name,
+        name: name,
       },
     })
     const responses = []
@@ -541,8 +583,103 @@ app.get("/polls/:name", async (req, res) => {
       responses.push(row.response)
     })
     return res.status(200).send({
-      name: req.params.name,
-      responses: responses,
+      name: name,
+      data: responses,
+      responses: rows.length,
+    })
+  } catch (error) {
+    prettyError(error)
+    return res.sendStatus(500)
+  }
+})
+
+app.post("/polls/:name/sendmail", async (req, res) => {
+  try {
+    const authorization = req.headers["authorization"]
+    if (!authorization) {
+      const error = new Error("Missing authorization header")
+      console.error(error)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    if (authorization !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+      const error = new Error("Wrong authorization header")
+      console.error(error, authorization)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    if (!req.params.name || req.params.name === "") {
+      const error = new Error("Missing name")
+      console.error(error, req.params)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    if (!req.body.subject || req.body.subject === "") {
+      const error = new Error("Missing subject")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    if (!req.body.body || req.body.body === "") {
+      const error = new Error("Missing body")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    const name = req.params.name
+    const poll = polls[name]
+    if (!poll) {
+      const error = new Error("Invalid name")
+      console.error(error, req.params)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    const preview = req.body.preview ? true : false
+    const rows = await Poll.findAll({
+      attributes: ["response"],
+      where: {
+        name: name,
+      },
+    })
+    const from = {
+      name: process.env.FROM_NAME,
+      email: process.env.FROM_EMAIL,
+    }
+    const recipients = []
+    if (preview === true) {
+      recipients.push(from.email)
+    } else {
+      rows.forEach((row) => {
+        if (isEmail(row.response) === true) {
+          recipients.push(row.response)
+        }
+      })
+    }
+    const subject = req.body.subject
+    const body = req.body.body
+    for (const recipient of recipients) {
+      if (process.env.SMTP_HOST === "localhost") {
+        // Delay used to throttle outbound emails attempting to prevent being
+        // flagged as SPAM when self-hosting SMTP server.
+        await wait(between(500, 2000))
+      }
+      await nodemailerTransport.sendMail({
+        from: `${from.name} <${from.email}>`,
+        to: recipient,
+        subject: subject,
+        text: body,
+      })
+    }
+    return res.status(200).send({
+      preview: preview,
+      recipients: recipients,
+      sent: true,
     })
   } catch (error) {
     prettyError(error)

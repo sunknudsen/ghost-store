@@ -38,22 +38,20 @@ Events to send 👉 `checkout.session.completed`
 
 Go to [https://dashboard.stripe.com/products](https://dashboard.stripe.com/products), add products and create payment links
 
-### Step 5: setup [Mailgun](https://www.mailgun.com/) account
-
-### Step 6: create database, user and grant privileges using `mysql --user root --password`
+### Step 5: create database, user and grant privileges using `mysql --user root --password`
 
 > Heads-up: replace `ghost_store_prod`, `ghost-store-123` and `d4q6g3w2kulttgtvsw43u5z8f69k` to match environment variables in `.env`.
 
-```
+```shell
 CREATE DATABASE ghost_store_prod;
 CREATE USER 'ghost-store-123'@'localhost' IDENTIFIED BY 'd4q6g3w2kulttgtvsw43u5z8f69k';
 GRANT ALL PRIVILEGES ON ghost_store_prod.* TO 'ghost-store-123'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-### Step 7: add ghost-store custom integration on `/ghost/#/settings/integrations`
+### Step 6: add ghost-store custom integration on `/ghost/#/settings/integrations`
 
-### Step 8: append following code after `{{ghost_head}}` in `default.hbs` (see [example](https://github.com/sunknudsen/custom-ghost-edition-theme/blob/a4e1f033b013d7c0e04e14e8c873f38a2390b41e/default.hbs#L12-L15))
+### Step 7: append following code after `{{ghost_head}}` in `default.hbs` (see [example](https://github.com/sunknudsen/custom-ghost-edition-theme/blob/a4e1f033b013d7c0e04e14e8c873f38a2390b41e/default.hbs#L12-L15))
 
 ```handlebars
 {{#if @member}}
@@ -62,9 +60,9 @@ FLUSH PRIVILEGES;
 {{/if}}
 ```
 
-### Step 9: create confirmation page (configured using `GHOST_CONFIRMATION_PAGE` environment variable, see [example](https://sunknudsen.com/almost-there/))
+### Step 8: create confirmation page (configured using `GHOST_CONFIRMATION_PAGE` environment variable, see [example](https://sunknudsen.com/almost-there/))
 
-### Step 10: configure and run ghost-store
+### Step 9: configure and run ghost-store
 
 Clone [ghost-store](https://github.com/sunknudsen/ghost-store), create `.env`, `store.json` and `template.hbs`, run `node index.js` and point subdomain to service (complexity of step has been abstracted).
 
@@ -72,33 +70,51 @@ Clone [ghost-store](https://github.com/sunknudsen/ghost-store), create `.env`, `
 
 ### Implement member-only product
 
-#### Step 1: add link to ghost-store product on page or post leaving email blank
+#### Step 1: add product to `store.json`
 
-> Heads-up: replace `http://localhost:8443` to match environment variable in `.env`.
-
-http://localhost:8443/store?path=qr-bridge&email=
-
-#### Step 2: add following code to page or post footer using code injection
-
-> Heads-up: replace `http://localhost:8443` to match environment variable in `.env`.
-
-```html
-<script>
-  if (member_email) {
-    const ghostStoreAnchors = document.querySelectorAll(
-      "a[href*='http://localhost:8443']"
-    )
-    ghostStoreAnchors.forEach(function (ghostStoreAnchor) {
-      ghostStoreAnchor.setAttribute(
-        "href",
-        ghostStoreAnchor.href.replace("email=", `email=${member_email}`)
-      )
-    })
+```console
+$ cat store.json
+{
+  "qr-bridge": {
+    "id": "prod_L2EsSVD8OwVBPm",
+    "name": "QR Bridge",
+    "paymentLink": "https://buy.stripe.com/test_aEU014cfh0kT6M8001",
+    "files": {
+      "qr-bridge.AppImage": "qr-bridge-1.1.0.AppImage",
+      "qr-bridge.AppImage.asc": "qr-bridge-1.1.0.AppImage.asc"
+    },
+    "members": true
   }
-</script>
+}
+
 ```
 
-### Send complimentary product (membership not required)
+#### Step 2: add following custom HTML to page or post after public preview
+
+> Heads-up: replace `http://localhost:8443` to match environment variable in `.env`.
+
+> Heads-up: replace `qr-bridge` to match product in `store.json`.
+
+> Heads-up: adjust class attributes to match template.
+
+```html
+<form
+  action="http://localhost:8443/store"
+  method="post"
+  onsubmit="this.email.value = member_email"
+  target="_blank"
+>
+  <input name="path" type="hidden" value="qr-bridge" />
+  <input name="email" type="hidden" />
+  <div class="kg-card kg-button-card kg-align-left">
+    <button class="kg-btn kg-btn-accent">🐰 Download</button>
+  </div>
+</form>
+```
+
+#### Step 3: create `GHOST_STORE_CONFIRMATION_PAGE` page
+
+### Offer complimentary product (membership not required)
 
 #### Step 1: install [HTTPie](https://httpie.io/)
 
@@ -106,10 +122,106 @@ http://localhost:8443/store?path=qr-bridge&email=
 
 > Heads-up: replace `http://localhost:8443` and `b1vtyyzkhrcqosg0iioi4b6w7zo0` to match environment variables in `.env`.
 
-```
-http POST http://localhost:8443/admin \
+> Heads-up: replace `qr-bridge` to match product in `store.json`.
+
+```console
+$ http POST http://localhost:8443/admin \
 "Authorization: Bearer b1vtyyzkhrcqosg0iioi4b6w7zo0" \
 name="John Doe" \
 email="john@privacyconscio.us" \
 path="qr-bridge"
+{
+    "sent": true
+}
+```
+
+### Implement poll
+
+#### Step 1: add poll to `polls.json`
+
+```console
+$ cat polls.json
+{
+  "bitcoin-masterclass": {
+    "type": "email",
+    "unique": true
+  }
+}
+```
+
+#### Step 2: add following custom HTML to page or post
+
+> Heads-up: replace `http://localhost:8443` to match environment variable in `.env`.
+
+> Heads-up: replace `bitcoin-masterclass` to match poll in `polls.json`.
+
+> Heads-up: adjust class attributes to match template.
+
+```html
+<form
+  action="http://localhost:8443/polls"
+  method="post"
+  onsubmit="t=this; setTimeout(() => { t.reset() }, 0)"
+  target="_blank"
+>
+  <input name="name" type="hidden" value="bitcoin-masterclass" />
+  <input name="response" type="email" placeholder="Enter your email" required />
+  <div class="kg-card kg-button-card kg-align-left">
+    <button class="kg-btn kg-btn-accent">🐰 Submit</button>
+  </div>
+</form>
+```
+
+#### Step 3: create `GHOST_POLLS_CONFIRMATION_PAGE` page
+
+### Get poll data
+
+#### Step 1: install [HTTPie](https://httpie.io/)
+
+#### Step 2: send `GET` request to `/polls/:name`
+
+> Heads-up: replace `http://localhost:8443` and `b1vtyyzkhrcqosg0iioi4b6w7zo0` to match environment variables in `.env`.
+
+> Heads-up: replace `bitcoin-masterclass` to match poll in `polls.json`.
+
+```console
+$ http GET http://localhost:8443/polls/bitcoin-masterclass \
+"Authorization: Bearer b1vtyyzkhrcqosg0iioi4b6w7zo0"
+{
+    "data": [
+        "john@privacyconscio.us"
+    ],
+    "name": "bitcoin-masterclass",
+    "responses": 1
+}
+```
+
+### Send message to poll participants (requires `"type": "email"`)
+
+#### Step 1: install [HTTPie](https://httpie.io/)
+
+#### Step 2: send `POST` request to `/polls/:name/sendmail`
+
+> Heads-up: replace `http://localhost:8443` and `b1vtyyzkhrcqosg0iioi4b6w7zo0` to match environment variables in `.env`.
+
+> Heads-up: replace `bitcoin-masterclass` to match poll in `polls.json`.
+
+> Heads-up: use `preview=true` to send preview email to `FROM_EMAIL`.
+
+```console
+$ http POST http://localhost:8443/polls/bitcoin-masterclass/sendmail \
+'Authorization: Bearer b1vtyyzkhrcqosg0iioi4b6w7zo0' \
+subject='Hey!' \
+body="$(cat << "EOF"
+Message goes here…
+EOF
+)" \
+preview=true
+{
+    "preview": true,
+    "recipients": [
+        "sun@privacyconscio.us"
+    ],
+    "sent": true
+}
 ```
