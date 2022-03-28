@@ -1,0 +1,140 @@
+@font-face {
+  font-family: "Open Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: local("Open Sans Regular "), local("Open Sans-Regular"),
+    url("fonts/open-sans-latin-400.woff2") format("woff2"),
+    url("fonts/open-sans-latin-400.woff") format("woff");
+}
+@font-face {
+  font-family: "Open Sans";
+  font-style: italic;
+  font-display: swap;
+  font-weight: 400;
+  src: local("Open Sans Regular italic"), local("Open Sans-Regularitalic"),
+    url("fonts/open-sans-latin-400italic.woff2") format("woff2"),
+    url("fonts/open-sans-latin-400italic.woff") format("woff");
+}
+@font-face {
+  font-family: "Open Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: local("Open Sans Bold "), local("Open Sans-Bold"),
+    url("fonts/open-sans-latin-700.woff2") format("woff2"),
+    url("fonts/open-sans-latin-700.woff") format("woff");
+}
+@font-face {
+  font-family: "Open Sans";
+  font-style: italic;
+  font-display: swap;
+  font-weight: 700;
+  src: local("Open Sans Bold italic"), local("Open Sans-Bolditalic"),
+    url("fonts/open-sans-latin-700italic.woff2") format("woff2"),
+    url("fonts/open-sans-latin-700italic.woff") format("woff");
+}
+
+:root {
+  --font-family: "Open Sans", sans-serif;
+  --midnight-blue: #202f3f;
+  --space-purple: #3e385a;
+}
+
+[data-theme="light"],
+:root:not([data-theme="dark"]) {
+  --primary-focus: rgba(51, 51, 51, 0.125);
+  --primary-hover: #000;
+  --primary: #333;
+}
+
+body > main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100vh - 7rem);
+  padding: 1rem 0;
+}
+
+article {
+  padding: 0;
+  overflow: hidden;
+}
+
+article div {
+  padding: 1rem;
+}
+
+@media (min-width: 576px) {
+  body > main {
+    padding: 1.25rem 0;
+  }
+
+  article div {
+    padding: 1.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  body > main {
+    padding: 1.5rem 0;
+  }
+
+  article div {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 992px) {
+  body > main {
+    padding: 1.75rem 0;
+  }
+
+  article div {
+    padding: 1.75rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  body > main {
+    padding: 2rem 0;
+  }
+
+  article div {
+    padding: 2rem;
+  }
+}
+
+article div:nth-of-type(2) {
+  position: relative;
+  background-color: var(--midnight-blue);
+  background-image: url("https://sunknudsen.com/content/images/size/w1140/2022/01/cover.jpg");
+  background-position: center;
+  background-size: cover;
+  display: none;
+}
+article div:nth-of-type(2)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  background-image: linear-gradient(
+    -45deg,
+    var(--space-purple),
+    var(--midnight-blue)
+  );
+  opacity: 0.5;
+}
+
+@media (min-width: 992px) {
+  .grid > div:nth-of-type(2) {
+    display: block;
+  }
+}
+
+body > footer {
+  padding: 1rem 0;
+}

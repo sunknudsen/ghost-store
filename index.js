@@ -3,7 +3,8 @@
 const dotenv = require("dotenv")
 const express = require("express")
 const bodyParser = require("body-parser")
-const { Sequelize, Model, DataTypes } = require("sequelize")
+const cookieParser = require("cookie-parser")
+const { Sequelize, Model, DataTypes, Op } = require("sequelize")
 const got = require("got")
 const ghost = require("@tryghost/admin-api")
 const moment = require("moment")
@@ -18,9 +19,11 @@ dotenv.config()
 
 const pollsFile = join(__dirname, "polls.json")
 const storeFile = join(__dirname, "store.json")
-const templateFile = join(__dirname, "template.hbs")
-
-const downloadLinkExpiry = process.env.DOWNLOAD_LINK_EXPIRY
+const defaultTemplateFile = join(__dirname, "default-template.hbs")
+const orderConfirmationTemplateFile = join(
+  __dirname,
+  "order-confirmation-template.hbs"
+)
 
 const prettyError = (error) => {
   if (error instanceof got.HTTPError) {
@@ -74,7 +77,7 @@ const generateToken = (size = 24) => {
   return randomBytes(size).toString("hex").slice(0, size)
 }
 
-const sendOrderConfirmationEmail = async (to, path, product) => {
+const sendOrderConfirmationEmail = async (req, to, path, product) => {
   const downloads = []
   if (product.files) {
     const filenames = Object.keys(product.files)
@@ -85,7 +88,7 @@ const sendOrderConfirmationEmail = async (to, path, product) => {
         token: generateToken(),
       })
       downloads.push(
-        `${process.env.BASE_URL}/downloads/${download.filename}?token=${download.token}`
+        `${req.protocol}://${req.headers.host}/downloads/${download.filename}?token=${download.token}`
       )
     }
   }
@@ -94,6 +97,40 @@ const sendOrderConfirmationEmail = async (to, path, product) => {
     for (const link of product.links) {
       links.push(link)
     }
+  }
+  if (product.cdn) {
+    const emailHmac = createHmac("sha256", process.env.HMAC_SECRET)
+      .update(to.email.toLowerCase().trim())
+      .digest("hex")
+    const token = generateToken()
+    const [user, created] = await User.upsert(
+      {
+        emailHmac: emailHmac,
+        token: token,
+      },
+      { returning: true }
+    )
+    const authorization = await Authorization.findOne({
+      where: { path: path, userId: user.id },
+    })
+    if (authorization) {
+      await authorization.update({
+        expiresOn: moment()
+          .add(product.cdn.expiry.amount, product.cdn.expiry.unit)
+          .toDate(),
+      })
+    } else {
+      await Authorization.create({
+        path: path,
+        expiresOn: moment()
+          .add(product.cdn.expiry.amount, product.cdn.expiry.unit)
+          .toDate(),
+        userId: user.id,
+      })
+    }
+    links.push(
+      `${req.protocol}://${req.headers.host}/login?emailhmac=${emailHmac}&token=${token}&redirect=${product.cdn.redirect}`
+    )
   }
   if (downloads.length === 0 && links.length === 0) {
     throw new Error("Invalid email payload")
@@ -115,7 +152,9 @@ const sendOrderConfirmationEmail = async (to, path, product) => {
     links: links,
   }
   if (downloads.length > 0) {
-    data.expiry = moment.duration(downloadLinkExpiry, "hours").humanize()
+    data.expiry = moment
+      .duration(process.env.DOWNLOAD_LINK_EXPIRY, "hours")
+      .humanize()
   }
   if (product.eventOn && product.eventOn !== "") {
     data.eventOn = moment(product.eventOn).format(
@@ -126,7 +165,7 @@ const sendOrderConfirmationEmail = async (to, path, product) => {
     from: `${from.name} <${from.email}>`,
     to: `${to.name} <${to.email}>`,
     subject: product.name,
-    text: template(data),
+    text: orderConfirmationTemplate(data),
   })
   return info
 }
@@ -220,12 +259,14 @@ app.use(bodyParser.json())
 
 app.use(bodyParser.urlencoded({ extended: true }))
 
+app.use(cookieParser())
+
 app.post("/", async (req, res) => {
   try {
     const stripeSignature = req.headers["stripe-signature"]
     if (!stripeSignature) {
       const error = new Error("Missing Stripe webhook signature header")
-      console.error(error)
+      console.error(error, req.headers)
       return res.status(401).send({
         error: error.message,
       })
@@ -292,7 +333,7 @@ app.post("/", async (req, res) => {
           error: error.message,
         })
       }
-      await sendOrderConfirmationEmail(to, path, product)
+      await sendOrderConfirmationEmail(req, to, path, product)
       orderConfirmationEmailSent = true
     }
     if (orderConfirmationEmailSent === true) {
@@ -308,17 +349,17 @@ app.post("/", async (req, res) => {
 
 app.post("/admin", async (req, res) => {
   try {
-    const authorization = req.headers["authorization"]
-    if (!authorization) {
+    const authorizationHeader = req.headers["authorization"]
+    if (!authorizationHeader) {
       const error = new Error("Missing authorization header")
-      console.error(error)
+      console.error(error, req.headers)
       return res.status(401).send({
         error: error.message,
       })
     }
-    if (authorization !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+    if (authorizationHeader !== `Bearer ${process.env.ADMIN_TOKEN}`) {
       const error = new Error("Wrong authorization header")
-      console.error(error, authorization)
+      console.error(error, req.headers)
       return res.status(401).send({
         error: error.message,
       })
@@ -357,7 +398,7 @@ app.post("/admin", async (req, res) => {
       name: req.body.name,
       email: req.body.email,
     }
-    await sendOrderConfirmationEmail(to, path, product)
+    await sendOrderConfirmationEmail(req, to, path, product)
     return res.status(200).send({
       sent: true,
     })
@@ -399,14 +440,14 @@ app.post("/store", async (req, res) => {
     const product = store[path]
     if (!product) {
       const error = new Error("Product not found")
-      console.error(error, req.headers.authorization)
+      console.error(error, req.body)
       return res.status(404).send({
         error: error.message,
       })
     }
     if (product.members !== true) {
       const error = new Error("Product paid-only")
-      console.error(error, req.headers.authorization)
+      console.error(error, req.body)
       return res.status(403).send({
         error: error.message,
       })
@@ -415,7 +456,7 @@ app.post("/store", async (req, res) => {
       name: member.name,
       email: member.email,
     }
-    await sendOrderConfirmationEmail(to, path, product)
+    await sendOrderConfirmationEmail(req, to, path, product)
     return res.redirect(process.env.GHOST_STORE_CONFIRMATION_PAGE)
   } catch (error) {
     prettyError(error)
@@ -425,9 +466,9 @@ app.post("/store", async (req, res) => {
 
 app.get("/downloads/:filename", async (req, res) => {
   try {
-    if (!req.query.token) {
+    if (!req.query.token || req.query.token === "") {
       const error = new Error("Missing token")
-      console.error(error)
+      console.error(error, req.query)
       return res.status(401).send({
         error: error.message,
       })
@@ -437,14 +478,14 @@ app.get("/downloads/:filename", async (req, res) => {
     })
     if (!download) {
       const error = new Error("Wrong token")
-      console.error(error, req.query.token)
+      console.error(error, req.query)
       return res.status(401).send({
         error: error.message,
       })
     }
     if (moment().isAfter(download.expiresOn)) {
       const error = new Error("Download expired")
-      console.error(error)
+      console.error(error, download)
       return res.status(403).send({
         error: error.message,
       })
@@ -468,7 +509,9 @@ app.get("/downloads/:filename", async (req, res) => {
     const filePath = join(__dirname, "downloads", file)
     if (download.expiresOn === null) {
       download.update({
-        expiresOn: moment().add(downloadLinkExpiry, "hour").toDate(),
+        expiresOn: moment()
+          .add(process.env.DOWNLOAD_LINK_EXPIRY, "hour")
+          .toDate(),
       })
     }
     return res
@@ -541,17 +584,17 @@ app.post("/polls", async (req, res) => {
 
 app.get("/polls/:name", async (req, res) => {
   try {
-    const authorization = req.headers["authorization"]
-    if (!authorization) {
+    const authorizationHeader = req.headers["authorization"]
+    if (!authorizationHeader) {
       const error = new Error("Missing authorization header")
-      console.error(error)
+      console.error(error, req.headers)
       return res.status(401).send({
         error: error.message,
       })
     }
-    if (authorization !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+    if (authorizationHeader !== `Bearer ${process.env.ADMIN_TOKEN}`) {
       const error = new Error("Wrong authorization header")
-      console.error(error, authorization)
+      console.error(error, req.headers)
       return res.status(401).send({
         error: error.message,
       })
@@ -595,15 +638,15 @@ app.get("/polls/:name", async (req, res) => {
 
 app.post("/polls/:name/sendmail", async (req, res) => {
   try {
-    const authorization = req.headers["authorization"]
-    if (!authorization) {
+    const authorizationHeader = req.headers["authorization"]
+    if (!authorizationHeader) {
       const error = new Error("Missing authorization header")
-      console.error(error)
+      console.error(error, req.headers)
       return res.status(401).send({
         error: error.message,
       })
     }
-    if (authorization !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+    if (authorizationHeader !== `Bearer ${process.env.ADMIN_TOKEN}`) {
       const error = new Error("Wrong authorization header")
       console.error(error, authorization)
       return res.status(401).send({
@@ -687,9 +730,242 @@ app.post("/polls/:name/sendmail", async (req, res) => {
   }
 })
 
+app.get("/login", async (req, res, next) => {
+  try {
+    if (req.query.emailhmac && req.query.token && req.query.redirect) {
+      const emailHmac = req.query.emailhmac
+      const token = req.query.token
+      const user = await User.findOne({
+        where: { emailHmac: emailHmac },
+      })
+      if (!user) {
+        const error = new Error("Could not find user")
+        console.error(error, req.query)
+        return res.status(404).send({
+          error: error.message,
+        })
+      }
+      if (user.token !== token) {
+        const error = new Error("Wrong token")
+        console.error(error, req.query)
+        return res.redirect(
+          302,
+          `${req.protocol}://${req.headers.host}${req.path}?error=invalid-token&redirect=${req.query.redirect}`
+        )
+      }
+      user.update({
+        token: null,
+      })
+      const sessions = await Session.findAll({
+        attributes: ["id"],
+        limit: parseInt(process.env.SESSION_CONCURRENCY) - 1,
+        order: [["createdAt", "DESC"]],
+        where: { userId: user.id },
+      })
+      const ids = []
+      sessions.forEach((session) => {
+        ids.push(session.id)
+      })
+      await Session.update(
+        {
+          valid: false,
+        },
+        {
+          where: { id: { [Op.notIn]: ids } },
+        }
+      )
+      const sessionToken = generateToken()
+      const sessionSalt = generateToken()
+      const sessionHmac = createHmac("sha256", process.env.HMAC_SECRET)
+        .update(sessionSalt.concat(req.ip))
+        .digest("hex")
+      await Session.create({
+        token: sessionToken,
+        hmac: sessionHmac,
+        userId: user.id,
+      })
+      const domain =
+        req.hostname === "localhost"
+          ? "localhost"
+          : `.${req.hostname
+              .split(".")
+              .reverse()
+              .splice(0, 2)
+              .reverse()
+              .join(".")}`
+      res.cookie("session-salt", sessionSalt, {
+        domain: domain,
+      })
+      res.cookie("session-token", sessionToken, {
+        domain: domain,
+      })
+      res.redirect(302, req.query.redirect)
+    } else {
+      next()
+    }
+  } catch (error) {
+    prettyError(error)
+    return res.sendStatus(500)
+  }
+})
+
+app.post("/login", async (req, res) => {
+  try {
+    if (!req.body.email || req.body.email === "") {
+      const error = new Error("Missing email")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    if (!req.body.redirect || req.body.redirect === "") {
+      const error = new Error("Missing redirect")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    const email = req.body.email
+    const emailHmac = createHmac("sha256", process.env.HMAC_SECRET)
+      .update(email.toLowerCase().trim())
+      .digest("hex")
+    const user = await User.findOne({
+      where: { emailHmac: emailHmac },
+    })
+    if (!user) {
+      const error = new Error("Wrong credentials")
+      console.error(error, req.body)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    const token = generateToken()
+    await user.update({
+      token: token,
+    })
+    const from = {
+      name: process.env.FROM_NAME,
+      email: process.env.FROM_EMAIL,
+    }
+    const data = {
+      from: {
+        firstName: from.name.split(" ")[0],
+        email: from.email,
+      },
+      to: {
+        email: email,
+      },
+      message: `Please click following magic link to log in.\n\n${req.protocol}://${req.headers.host}${req.path}?emailhmac=${emailHmac}&token=${token}&redirect=${req.body.redirect}`,
+    }
+    await nodemailerTransport.sendMail({
+      from: `${from.name} <${from.email}>`,
+      to: email,
+      subject: "Magic link",
+      text: defaultTemplate(data),
+    })
+    return res.send({
+      message: "Check your emails",
+    })
+  } catch (error) {
+    prettyError(error)
+    return res.sendStatus(500)
+  }
+})
+
+app.post("/authorize", async (req, res) => {
+  try {
+    const authorizationHeader = req.headers["authorization"]
+    if (!authorizationHeader) {
+      const error = new Error("Missing authorization header")
+      console.error(error, req.headers)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    if (authorizationHeader !== `Bearer ${process.env.AUTH_TOKEN}`) {
+      const error = new Error("Wrong authorization header")
+      console.error(error, req.headers)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    const sessionSalt = req.body.sessionSalt
+    const sessionToken = req.body.sessionToken
+    const path = req.body.path
+    if (!sessionSalt || sessionSalt === "") {
+      const error = new Error("Missing session salt")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    if (!sessionToken || sessionToken === "") {
+      const error = new Error("Missing session token")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    if (!path || path === "") {
+      const error = new Error("Missing path")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    const session = await Session.findOne({
+      where: { token: sessionToken },
+    })
+    if (!session) {
+      const error = new Error("Session not found")
+      console.error(error, req.body)
+      return res.status(404).send({
+        error: error.message,
+      })
+    }
+    if (session.valid !== true) {
+      const error = new Error("Session expired")
+      console.error(error, req.body)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    const authorization = await Authorization.findOne({
+      where: {
+        path: path,
+        userId: session.userId,
+      },
+    })
+    if (!authorization) {
+      const error = new Error("Authorization not found")
+      console.error(error, req.body)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    if (moment().isAfter(authorization.expiresOn)) {
+      const error = new Error("Authorization expired")
+      console.error(error, req.body)
+      return res.status(403).send({
+        error: error.message,
+      })
+    }
+    return res.send({ authorized: true })
+  } catch (error) {
+    prettyError(error)
+    return res.sendStatus(500)
+  }
+})
+
 app.get("/status", async (req, res) => {
   return res.sendStatus(204)
 })
+
+app.use(
+  express.static("public", {
+    dotfiles: "ignore",
+  })
+)
 
 var polls
 
@@ -717,15 +993,24 @@ const loadStore = async () => {
   }
 }
 
-var template
+var defaultTemplate
+var orderConfirmationTemplate
 
-const loadTemplate = async () => {
-  const data = await readFile(templateFile, "utf8")
-  template = handlebars.compile(data)
+const loadTemplates = async () => {
+  const defaultTemplateData = await readFile(defaultTemplateFile, "utf8")
+  defaultTemplate = handlebars.compile(defaultTemplateData)
+  const orderConfirmationTemplateData = await readFile(
+    orderConfirmationTemplateFile,
+    "utf8"
+  )
+  orderConfirmationTemplate = handlebars.compile(orderConfirmationTemplateData)
 }
 
 class Download extends Model {}
+class Authorization extends Model {}
 class Poll extends Model {}
+class Session extends Model {}
+class User extends Model {}
 
 const initializeDatabase = async () => {
   Download.init(
@@ -749,6 +1034,18 @@ const initializeDatabase = async () => {
     },
     { sequelize, modelName: "downloads" }
   )
+  Authorization.init(
+    {
+      path: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      expiresOn: {
+        type: DataTypes.DATE,
+      },
+    },
+    { sequelize, modelName: "authorizations" }
+  )
   Poll.init(
     {
       name: {
@@ -763,6 +1060,51 @@ const initializeDatabase = async () => {
     },
     { sequelize, modelName: "polls" }
   )
+  Session.init(
+    {
+      token: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      hmac: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      valid: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+      },
+    },
+    { sequelize, modelName: "sessions" }
+  )
+  User.init(
+    {
+      emailHmac: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+      },
+      token: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+    },
+    { sequelize, modelName: "users" }
+  )
+  User.hasMany(Authorization, {
+    foreignKey: {
+      name: "userId",
+      allowNull: false,
+    },
+    onDelete: "CASCADE",
+  })
+  User.hasMany(Session, {
+    foreignKey: {
+      name: "userId",
+      allowNull: false,
+    },
+    onDelete: "CASCADE",
+  })
   await sequelize.sync()
   if (process.env.DEBUG === "true") {
     console.info("Database synched")
@@ -781,7 +1123,7 @@ const run = async () => {
   try {
     await loadPolls()
     await loadStore()
-    await loadTemplate()
+    await loadTemplates()
     await initializeDatabase()
     await initializeServer()
   } catch (error) {

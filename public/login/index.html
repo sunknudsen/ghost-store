@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html data-theme="light" lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="pico.min.css" />
+    <link rel="stylesheet" href="style.css" />
+    <title>Log in</title>
+  </head>
+  <body>
+    <nav class="container-fluid">
+      <ul>
+        <li>
+          <a href="https://sunknudsen.com" class="contrast" target="_blank"
+            ><strong>Sun Knudsen</strong></a
+          >
+        </li>
+      </ul>
+    </nav>
+    <main class="container">
+      <article class="grid">
+        <div>
+          <hgroup>
+            <h1>Hello</h1>
+            <h2>Please log in to access restricted content.</h2>
+          </hgroup>
+          <form id="form">
+            <input
+              name="email"
+              type="email"
+              pattern="^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$"
+              placeholder="Email"
+              required
+            />
+            <button id="button" type="submit" class="contrast">Log in</button>
+            <strong id="message"></strong>
+          </form>
+        </div>
+        <div></div>
+      </article>
+    </main>
+    <footer class="container-fluid">
+      <small
+        >Powered by
+        <a
+          href="https://github.com/sunknudsen/ghost-store"
+          class="secondary"
+          target="_blank"
+          >ghost-store</a
+        ></small
+      >
+    </footer>
+    <script src="script.js"></script>
+  </body>
+</html>

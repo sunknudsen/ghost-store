@@ -9,12 +9,12 @@
     },
     "members": true
   },
-  "bitcoin-masterclass": {
+  "bitcoin-self-custody-masterclass": {
     "id": "prod_L2EwNuviYnZhDc",
-    "name": "Bitcoin self-custody for beginners master class",
+    "name": "Bitcoin self-custody masterclass",
     "paymentLink": "https://buy.stripe.com/test_fZe29c7Z17Nlb2obIK",
     "links": [
-      "https://meet.sunknudsen.com/bitcoin-masterclass-c189ba64eb6c"
+      "https://meet.sunknudsen.com/bitcoin-self-custody-masterclass"
     ],
     "eventOn": "2022-01-08T18:00:00.000Z",
     "members": false

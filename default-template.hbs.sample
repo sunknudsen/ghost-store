@@ -1,0 +1,7 @@
+Hey{{#if to.firstName}} {{to.firstName}}{{/if}},
+
+{{{message}}}
+
+Have a wonderful day,
+
+{{from.firstName}}
