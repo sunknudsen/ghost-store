@@ -343,7 +343,9 @@ app.post("/", async (req, res) => {
     }
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
@@ -404,7 +406,9 @@ app.post("/admin", async (req, res) => {
     })
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
@@ -460,7 +464,9 @@ app.post("/store", async (req, res) => {
     return res.redirect(process.env.GHOST_STORE_CONFIRMATION_PAGE)
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
@@ -519,7 +525,9 @@ app.get("/downloads/:filename", async (req, res) => {
       .sendFile(filePath)
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
@@ -578,7 +586,9 @@ app.post("/polls", async (req, res) => {
     return res.redirect(process.env.GHOST_POLLS_CONFIRMATION_PAGE)
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
@@ -632,7 +642,9 @@ app.get("/polls/:name", async (req, res) => {
     })
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
@@ -726,7 +738,9 @@ app.post("/polls/:name/sendmail", async (req, res) => {
     })
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
@@ -805,7 +819,9 @@ app.get("/login", async (req, res, next) => {
     }
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
@@ -868,7 +884,9 @@ app.post("/login", async (req, res) => {
     })
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
@@ -953,7 +971,9 @@ app.post("/authorize", async (req, res) => {
     return res.send({ authorized: true })
   } catch (error) {
     prettyError(error)
-    return res.sendStatus(500)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
   }
 })
 
