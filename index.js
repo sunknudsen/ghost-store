@@ -563,6 +563,12 @@ app.post("/polls", async (req, res) => {
       return res.status(400).send({
         error: error.message,
       })
+    } else if (poll.type === "text" && response.length > 1024) {
+      const error = new Error("Invalid response (too long)")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
     }
     var duplicate = false
     if (poll.unique === true) {
@@ -1074,7 +1080,7 @@ const initializeDatabase = async () => {
         index: true,
       },
       response: {
-        type: DataTypes.STRING,
+        type: DataTypes.STRING(1024),
         allowNull: false,
       },
     },
