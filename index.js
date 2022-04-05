@@ -14,6 +14,7 @@ const { pathExists, readFile, writeFile } = require("fs-extra")
 const { join } = require("path")
 const { inspect } = require("util")
 const { createHmac, randomBytes } = require("crypto")
+const whilst = require("p-whilst")
 
 dotenv.config()
 
@@ -412,6 +413,170 @@ app.post("/admin", async (req, res) => {
   }
 })
 
+app.post("/promo-code", async (req, res) => {
+  try {
+    if (!req.body.path || req.body.path === "") {
+      const error = new Error("Missing path")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    if (!req.body.email || req.body.email === "") {
+      const error = new Error("Missing email")
+      console.error(error, req.body)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    const email = req.body.email
+    const members = await ghostClient.members.browse({
+      filter: `email:'${email}'`,
+    })
+    if (members.length !== 1) {
+      const error = new Error("Membership required")
+      console.error(error, req.body)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    const member = members[0]
+    const memberNote = JSON.parse(member.note)
+    if (!memberNote.stripe || !memberNote.stripe.customer) {
+      const error = new Error(
+        "Automated promo codes disabled, please get in touch"
+      )
+      console.error(error, memberNote)
+      return res.status(500).send({
+        error: error.message,
+      })
+    }
+    const customerId = memberNote.stripe.customer
+    const path = req.body.path
+    const product = store[path]
+    if (!product) {
+      const error = new Error("Product not found")
+      console.error(error, req.body)
+      return res.status(404).send({
+        error: error.message,
+      })
+    }
+    const productId = product.id
+    const productPaymentLink = product.paymentLink
+    if (
+      !product.members ||
+      !product.members.discount ||
+      product.members.discount <= 0 ||
+      product.members.discount >= 1 ||
+      !product.members.coupon
+    ) {
+      const error = new Error("Invalid product members discount")
+      console.error(error, product)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    const couponId = product.members.coupon
+    let promoCodes = []
+    let more = true
+    let currentObject = ""
+    await whilst(
+      () => {
+        return more
+      },
+      async () => {
+        let startingAfter = ""
+        if (currentObject) {
+          startingAfter = `&starting_after=${currentObject}`
+        }
+        const url = `v1/promotion_codes?coupon=${couponId}&limit=100${startingAfter}`
+        if (process.env.DEBUG === "true") {
+          console.info(`Fetching ${process.env.STRIPE_API_PREFIX_URL}/${url}`)
+        }
+        const promoCodesResponse = await stripeClient.get(url)
+        promoCodes = promoCodes.concat(promoCodesResponse.body.data)
+        more = promoCodesResponse.body.has_more
+        if (promoCodes.length > 0) {
+          currentObject = promoCodes.at(-1).id
+        }
+      }
+    )
+    let code = null
+    for (const promoCode of promoCodes) {
+      console.log({
+        active: promoCode.active,
+        customerId: promoCode.metadata.customer_id,
+        productId: promoCode.metadata.product_id,
+      })
+      if (
+        promoCode.active === false &&
+        promoCode.metadata.customer_id === customerId &&
+        promoCode.metadata.product_id === productId
+      ) {
+        const error = new Error("Promo code redeemed")
+        console.error(error, promoCode)
+        return res.status(401).send({
+          error: error.message,
+        })
+      } else if (
+        promoCode.active === true &&
+        promoCode.metadata.customer_id === customerId &&
+        promoCode.metadata.product_id === productId
+      ) {
+        code = promoCode.code
+      }
+    }
+    if (!code) {
+      const createPromoCodeResponse = await stripeClient.post(
+        `v1/promotion_codes`,
+        {
+          form: {
+            coupon: couponId,
+            "metadata[customer_id]": customerId,
+            "metadata[product_id]": productId,
+            max_redemptions: 1,
+          },
+        }
+      )
+      code = createPromoCodeResponse.body.code
+      if (process.env.DEBUG === "true") {
+        console.info("Created promo code")
+      }
+    }
+    const to = {
+      name: member.name,
+      email: member.email,
+    }
+    const from = {
+      name: process.env.FROM_NAME,
+      email: process.env.FROM_EMAIL,
+    }
+    const data = {
+      from: {
+        firstName: from.name.split(" ")[0],
+        email: from.email,
+      },
+      to: {
+        firstName: to.name.split(" ")[0],
+        email: to.email,
+      },
+      message: `Here is your member-only ${product.name} promo code: ${code}.\n\nPromo code can only be redeemed once on ${productPaymentLink}.`,
+    }
+    await nodemailerTransport.sendMail({
+      from: `${from.name} <${from.email}>`,
+      to: email,
+      subject: "Promo code",
+      text: defaultTemplate(data),
+    })
+    return res.redirect(process.env.GHOST_STORE_CONFIRMATION_PAGE)
+  } catch (error) {
+    prettyError(error)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
+  }
+})
+
 app.post("/store", async (req, res) => {
   try {
     if (!req.body.path || req.body.path === "") {
@@ -449,7 +614,11 @@ app.post("/store", async (req, res) => {
         error: error.message,
       })
     }
-    if (product.members !== true) {
+    if (
+      !product.members ||
+      !product.members.discount ||
+      product.members.discount !== 1
+    ) {
       const error = new Error("Product paid-only")
       console.error(error, req.body)
       return res.status(403).send({

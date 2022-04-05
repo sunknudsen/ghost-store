@@ -7,16 +7,24 @@
       "qr-bridge.AppImage": "qr-bridge-1.1.0.AppImage",
       "qr-bridge.AppImage.asc": "qr-bridge-1.1.0.AppImage.asc"
     },
-    "members": true
+    "members": {
+      "discount": 1
+    }
   },
   "bitcoin-self-custody-masterclass": {
     "id": "prod_L2EwNuviYnZhDc",
     "name": "Bitcoin self-custody masterclass",
     "paymentLink": "https://buy.stripe.com/test_fZe29c7Z17Nlb2obIK",
-    "links": [
-      "https://meet.sunknudsen.com/bitcoin-self-custody-masterclass"
-    ],
-    "eventOn": "2022-01-08T18:00:00.000Z",
-    "members": false
+    "cdn": {
+      "expiry": {
+        "amount": 90,
+        "unit": "days"
+      },
+      "redirect": "http://localhost:2368/bitcoin-self-custody-masterclass/"
+    },
+    "members": {
+      "discount": 0.15,
+      "coupon": "aVsxvMvx"
+    }
   }
 }

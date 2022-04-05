@@ -28,6 +28,8 @@ Customers 👉 Read
 
 Checkout Sessions 👉 Read
 
+Promotion Codes 👉 Write
+
 ### Step 3: create Stripe webhook
 
 Go to [https://dashboard.stripe.com/webhooks](https://dashboard.stripe.com/webhooks) and create webhook with following events that points to ghost-store service.
@@ -68,7 +70,66 @@ Clone [ghost-store](https://github.com/sunknudsen/ghost-store), create `.env`, `
 
 ## Usage overview
 
-### Implement member-only product
+### Offer discounts to members using promo code buttons
+
+#### Step 1: create coupon on Stripe
+
+> Heads-up: coupons can be product-specific.
+
+> Heads-up: do not use coupon dashboard to create codes as they are create programmatically.
+
+Go to https://dashboard.stripe.com/coupons and create coupon.
+
+#### Step 2: add product to `store.json`
+
+```console
+$ cat store.json
+{
+  "bitcoin-self-custody-masterclass": {
+    "id": "prod_L2EwNuviYnZhDc",
+    "name": "Bitcoin self-custody masterclass",
+    "paymentLink": "https://buy.stripe.com/test_fZe29c7Z17Nlb2obIK",
+    "cdn": {
+      "expiry": {
+        "amount": 90,
+        "unit": "days"
+      },
+      "redirect": "http://localhost:2368/bitcoin-self-custody-masterclass/"
+    },
+    "members": {
+      "discount": 0.15,
+      "coupon": "aVsxvMvx"
+    }
+  }
+}
+```
+
+#### Step 3: add following custom HTML to page or post after public preview
+
+> Heads-up: replace `http://localhost:8443` to match environment variable in `.env`.
+
+> Heads-up: replace `bitcoin-self-custody-masterclass` to match product in `store.json`.
+
+> Heads-up: adjust class attributes to match template.
+
+```html
+<form
+  action="http://localhost:8443/promo-code"
+  method="post"
+  onsubmit="this.email.value = member_email"
+  target="_blank"
+>
+  <input name="path" type="hidden" value="bitcoin-self-custody-masterclass" />
+  <input name="email" type="hidden" />
+  <div class="kg-card kg-button-card kg-align-left">
+    <button class="kg-btn kg-btn-accent">🐰 Get promo code</button>
+  </div>
+</form>
+```
+
+#### Step 4: create `GHOST_STORE_CONFIRMATION_PAGE` page
+
+### Offer complimentary product to members using product buttons
 
 #### Step 1: add product to `store.json`
 
@@ -79,14 +140,15 @@ $ cat store.json
     "id": "prod_L2EsSVD8OwVBPm",
     "name": "QR Bridge",
     "paymentLink": "https://buy.stripe.com/test_aEU014cfh0kT6M8001",
-    "files": {
+    "downloads": {
       "qr-bridge.AppImage": "qr-bridge-1.1.0.AppImage",
       "qr-bridge.AppImage.asc": "qr-bridge-1.1.0.AppImage.asc"
     },
-    "members": true
+    "members": {
+      "discount": 1
+    }
   }
 }
-
 ```
 
 #### Step 2: add following custom HTML to page or post after public preview
@@ -114,7 +176,7 @@ $ cat store.json
 
 #### Step 3: create `GHOST_STORE_CONFIRMATION_PAGE` page
 
-### Offer complimentary product (membership not required)
+### Offer complimentary product to anyone using API
 
 #### Step 1: install [HTTPie](https://httpie.io/)
 
@@ -135,7 +197,7 @@ path="qr-bridge"
 }
 ```
 
-### Implement poll
+### Create poll
 
 #### Step 1: add poll to `polls.json`
 
@@ -174,7 +236,7 @@ $ cat polls.json
 
 #### Step 3: create `GHOST_POLLS_CONFIRMATION_PAGE` page
 
-### Get poll data
+### Fetch poll data
 
 #### Step 1: install [HTTPie](https://httpie.io/)
 
