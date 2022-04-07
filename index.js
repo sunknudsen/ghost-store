@@ -919,6 +919,55 @@ app.post("/polls/:name/sendmail", async (req, res) => {
   }
 })
 
+app.delete("/polls/:name", async (req, res) => {
+  try {
+    const authorizationHeader = req.headers["authorization"]
+    if (!authorizationHeader) {
+      const error = new Error("Missing authorization header")
+      console.error(error, req.headers)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    if (authorizationHeader !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+      const error = new Error("Wrong authorization header")
+      console.error(error, authorization)
+      return res.status(401).send({
+        error: error.message,
+      })
+    }
+    if (!req.params.name || req.params.name === "") {
+      const error = new Error("Missing name")
+      console.error(error, req.params)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    const name = req.params.name
+    const poll = polls[name]
+    if (!poll) {
+      const error = new Error("Invalid name")
+      console.error(error, req.params)
+      return res.status(400).send({
+        error: error.message,
+      })
+    }
+    await Poll.destroy({
+      where: {
+        name: name,
+      },
+    })
+    return res.status(200).send({
+      done: true,
+    })
+  } catch (error) {
+    prettyError(error)
+    return res.status(500).send({
+      error: "Could not handle request",
+    })
+  }
+})
+
 app.get("/login", async (req, res, next) => {
   try {
     if (req.query.emailhmac && req.query.token && req.query.redirect) {

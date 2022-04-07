@@ -188,10 +188,10 @@ $ cat store.json
 
 ```console
 $ http POST http://localhost:8443/admin \
-"Authorization: Bearer b1vtyyzkhrcqosg0iioi4b6w7zo0" \
-name="John Doe" \
-email="john@privacyconscio.us" \
-path="qr-bridge"
+'Authorization: Bearer b1vtyyzkhrcqosg0iioi4b6w7zo0' \
+name='John Doe' \
+email='john@privacyconscio.us' \
+path='qr-bridge'
 {
     "sent": true
 }
@@ -248,7 +248,7 @@ $ cat polls.json
 
 ```console
 $ http GET http://localhost:8443/polls/bitcoin-masterclass \
-"Authorization: Bearer b1vtyyzkhrcqosg0iioi4b6w7zo0"
+'Authorization: Bearer b1vtyyzkhrcqosg0iioi4b6w7zo0'
 {
     "data": [
         "john@privacyconscio.us"
@@ -285,5 +285,25 @@ preview=true
         "sun@privacyconscio.us"
     ],
     "sent": true
+}
+```
+
+### Reset poll
+
+#### Step 1: install [HTTPie](https://httpie.io/)
+
+#### Step 2: send `DELETE` request to `/polls/:name`
+
+> Heads-up: permanently deletes all poll responses matching name.
+
+> Heads-up: replace `http://localhost:8443` and `b1vtyyzkhrcqosg0iioi4b6w7zo0` to match environment variables in `.env`.
+
+> Heads-up: replace `bitcoin-masterclass` to match poll in `polls.json`.
+
+```console
+$ http DELETE http://localhost:8443/polls/bitcoin-masterclass \
+'Authorization: Bearer b1vtyyzkhrcqosg0iioi4b6w7zo0'
+{
+    "done": true
 }
 ```
