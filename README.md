@@ -97,8 +97,8 @@ $ cat store.json
       "redirect": "http://localhost:2368/bitcoin-self-custody-masterclass/"
     },
     "members": {
-      "discount": 0.15,
-      "coupon": "aVsxvMvx"
+      "coupon": "aVsxvMvx",
+      "discount": 0.15
     }
   }
 }
